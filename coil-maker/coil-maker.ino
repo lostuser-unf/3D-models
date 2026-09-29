@@ -2,10 +2,10 @@
 #include <math.h>
 const float WIRE_D = 0.46; // in mm
 
-const float COIL_LEN = 31.5; // in mm
+const float COIL_LEN = 31.6; // in mm
 const float COIL_D = 10.0; // in mm
 
-const int TURNS = 100; //
+const int TURNS = 200; //
 const int TURNS_BY_LAYER = floor(COIL_LEN/WIRE_D);
 
 
@@ -14,9 +14,9 @@ const int TURNS_BY_LAYER = floor(COIL_LEN/WIRE_D);
 // machine config
 const bool DIR_PRESET = LOW; // PRESET TO ENDSTOP!!!!!
 const float THREAD_PITCH = 5; // turn/10mm
-const int STEPS_TO_360 = 200 *2; // 1.8 stepper motor
+const int STEPS_TO_360 = 200 *8; // 1.8 stepper motor
 const float ONE_STEP_ANGLE = 360 / STEPS_TO_360;
-const float STEP_FOR_MM = STEPS_TO_360 * 10 / THREAD_PITCH;
+const float STEP_FOR_MM = STEPS_TO_360 / 10 * THREAD_PITCH;
 
 const int LOWERING = 1;
 const int STEP_45 = floor(STEPS_TO_360 / 8) * LOWERING;
@@ -45,19 +45,25 @@ void setup() {
 /////////////////////////////////////////////
 
 void loop() {
-    delay(2000));
+    delay(2000);
     digitalWrite(EN_DRIVERS, LOW);
 
     goToEndstop();
 
-    for(int i = TURNS, digitalWrite(DIR_THREAD, !DIR_PRESET); i > 0; i -= TURNS_BY_LAYER){
+    digitalWrite(DIR_THREAD, !DIR_PRESET);
+    delay(3000);
+
+
+    for(int i = TURNS; i > 0; i -= TURNS_BY_LAYER){
         int turns_need = (i >= TURNS_BY_LAYER) ? TURNS_BY_LAYER : i;
-        {
-            move_mm(round(STEP_FOR_MM * WIRE_D / 2), STEP_THREAD, 100);
-            move(round(STEPS_TO_360/2); STEP_COIL, 100);
+
+        for(int j = 0; j < turns_need*2; j++){
+            move_mm( WIRE_D/2, STEP_THREAD, 50);
+            move(round(STEPS_TO_360/2), STEP_COIL, 50);
         }
-        digitalWrite(DIR_THREAD, !DIR_THREAD);
-        delay(1000);
+
+        digitalWrite(DIR_THREAD, !digitalRead(DIR_THREAD));
+        delay(2000);
     }
     goToEndstop();
 
@@ -109,7 +115,7 @@ void move_mm(float mm, int motor, int time_mcs){
     if(mm == 0)
         return 0;
 
-    digitalWrite(DIR_THREAD, (mm > 0 ? !DIR_PRESET : DIR_PRESET));
+    // digitalWrite(DIR_THREAD, (mm > 0 ? !DIR_PRESET : DIR_PRESET));
     int steps = floor(STEP_FOR_MM * mm);
     move(steps, motor, time_mcs);
 }
