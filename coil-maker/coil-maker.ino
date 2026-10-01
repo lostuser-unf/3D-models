@@ -2,22 +2,22 @@
 #include <math.h>
 const float WIRE_D = 0.46; // in mm
 
-const float COIL_LEN = 31.6; // in mm
+const float COIL_LEN = 25; // in mm
 const float COIL_D = 10.0; // in mm
 
-const int TURNS = 200; //
+const int TURNS = 301; //
 const int TURNS_BY_LAYER = floor(COIL_LEN/WIRE_D);
 
 
 // const bool STOP_LAYER = false;// stop after layer ended, for apply isolation
 
 // machine config
-const bool DIR_PRESET = LOW; // PRESET TO ENDSTOP!!!!!
+const bool DIR_PRESET = HIGH; // PRESET TO ENDSTOP!!!!!
 const float THREAD_PITCH = 5; // turn/10mm
 const int STEPS_TO_360 = 200 *8; // 1.8 stepper motor
 const float ONE_STEP_ANGLE = 360 / STEPS_TO_360;
 const float STEP_FOR_MM = STEPS_TO_360 / 10 * THREAD_PITCH;
-
+const int SLEEP = 100;
 const int LOWERING = 1;
 const int STEP_45 = floor(STEPS_TO_360 / 8) * LOWERING;
 
@@ -39,7 +39,7 @@ void setup() {
 
     digitalWrite(EN_DRIVERS, HIGH);
     digitalWrite(DIR_THREAD, DIR_PRESET);
-    digitalWrite(DIR_COIL, HIGH);
+    digitalWrite(DIR_COIL, LOW);
 }
 
 /////////////////////////////////////////////
@@ -58,10 +58,10 @@ void loop() {
         int turns_need = (i >= TURNS_BY_LAYER) ? TURNS_BY_LAYER : i;
 
         for(int j = 0; j < turns_need*2; j++){
-            move_mm( WIRE_D/2, STEP_THREAD, 50);
-            move(round(STEPS_TO_360/2), STEP_COIL, 50);
+            move_mm( WIRE_D/2, STEP_THREAD, SLEEP);
+            move(round(STEPS_TO_360/2), STEP_COIL, SLEEP);
         }
-
+        // move_mm( 6, STEP_THREAD, SLEEP);
         digitalWrite(DIR_THREAD, !digitalRead(DIR_THREAD));
         delay(2000);
     }
@@ -83,13 +83,13 @@ void loop() {
 void goToEndstop(void){
     digitalWrite(DIR_THREAD, DIR_PRESET);
     for (;!digitalRead(ENDSTOP);){
-        step(STEP_THREAD, 100);
+        step(STEP_THREAD, SLEEP);
     }
     digitalWrite(DIR_THREAD, !DIR_PRESET);
     delay(500);
 
     for (;digitalRead(ENDSTOP);){
-        step(STEP_THREAD, 200);
+        step(STEP_THREAD, SLEEP*2);
     }
     delay(500);
 }
