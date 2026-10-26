@@ -12,6 +12,7 @@ const int TURNS_BY_LAYER = floor(COIL_LEN/WIRE_D);
 // const bool STOP_LAYER = false;// stop after layer ended, for apply isolation
 
 // machine config
+const double LAYER_TIME = 30 * 1e6// in microseconds
 const bool DIR_PRESET = HIGH; // PRESET TO ENDSTOP!!!!!
 const float THREAD_PITCH = 5; // turn/10mm
 const int STEPS_TO_360 = 200 *8; // 1.8 stepper motor
@@ -20,6 +21,10 @@ const float STEP_FOR_MM = STEPS_TO_360 / 10 * THREAD_PITCH;
 const int SLEEP = 100;
 const int LOWERING = 1;
 const int STEP_45 = floor(STEPS_TO_360 / 8) * LOWERING;
+
+const int THREAD_SLEEP = round(LAYER_TIME / (STEP_FOR_MM * COIL_LEN));
+const int COIL_SLEEP = round(LAYER_TIME / (STEPS_TO_360 * COIL_LEN / WIRE_D));
+
 
 // boot config
 const int STEP_THREAD = 2;
@@ -66,6 +71,12 @@ void loop() {
         delay(2000);
     }
     goToEndstop();
+
+
+
+
+
+
 
 
 
@@ -118,4 +129,52 @@ void move_mm(float mm, int motor, int time_mcs){
     // digitalWrite(DIR_THREAD, (mm > 0 ? !DIR_PRESET : DIR_PRESET));
     int steps = floor(STEP_FOR_MM * mm);
     move(steps, motor, time_mcs);
+}
+
+
+
+void move_together(){
+    bool thread_stat = LOW;
+    bool coil_stat = LOW;
+    int coil_wait = COIL_SLEEP;
+    int thread_wait = THREAD_SLEEP;
+    int min_sleep = COIL_SLEEP < THREAD_SLEEP ? COIL_SLEEP : THREAD_SLEEP;
+    int wait = 0;
+    // if thread sleep > coil sleep
+    for(int i = LAYER_TIME;i>0;i-=wait){
+
+        thread_wait = (thread_wait < coil_wait) ? thread_wait : (thread_wait - coil_wait);
+
+
+        wait = coil_wait <= thread_wait ? coil_wait : thread_wait ;
+
+
+        if(coil_wait == COIL_SLEEP){
+            if(coil_wait <= thread_wait){
+                coil_stat = !coil_stat;
+                digitalWrite(STEP_COIL, coil_stat);
+            }
+
+            if(coil_wait >= thread_wait){
+                thread_stat = !thread_stat;
+                digitalWrite(STEP_THREAD, thread_stat);
+                coil_wait -= thread_wait;
+                thread_wait = THREAD_SLEEP;
+            }
+            delayMicroseconds(wait);
+
+        }
+        else{
+            coil_stat = !coil_stat;
+            digitalWrite(STEP_COIL, coil_stat);
+            delayMicroseconds(coil_wait);
+            thread_wait = THREAD_SLEEP - coil_wait;
+            coil_wait = COIL_SLEEP;
+        }
+
+
+    }
+
+
+
 }
