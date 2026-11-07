@@ -1,6 +1,6 @@
 // 5 зуб/см = 0.5/мм == 180град / мм == 3200 шаг/мм
 #include <math.h>
-const float WIRE_D = 0.46; // in mm
+const float WIRE_D = 0.30; // in mm
 
 const float COIL_LEN = 25; // in mm
 const float COIL_D = 10.0; // in mm
@@ -58,18 +58,18 @@ void loop() {
     digitalWrite(DIR_THREAD, !DIR_PRESET);
     delay(3000);
 
-
-    for(int i = TURNS; i > 0; i -= TURNS_BY_LAYER){
-        int turns_need = (i >= TURNS_BY_LAYER) ? TURNS_BY_LAYER : i;
-
-        for(int j = 0; j < turns_need*2; j++){
-            move_mm( WIRE_D/2, STEP_THREAD, SLEEP);
-            move(round(STEPS_TO_360/2), STEP_COIL, SLEEP);
-        }
-        // move_mm( 6, STEP_THREAD, SLEEP);
-        digitalWrite(DIR_THREAD, !digitalRead(DIR_THREAD));
-        delay(2000);
-    }
+    move_together(25, TURNS_BY_LAYER, !DIR_PRESET, LOW, LAYER_TIME);
+//     for(int i = TURNS; i > 0; i -= TURNS_BY_LAYER){
+//         int turns_need = (i >= TURNS_BY_LAYER) ? TURNS_BY_LAYER : i;
+//
+//         for(int j = 0; j < turns_need*2; j++){
+//             move_mm( WIRE_D/2, STEP_THREAD, SLEEP);
+//             move(round(STEPS_TO_360/2), STEP_COIL, SLEEP);
+//         }
+//         // move_mm( 6, STEP_THREAD, SLEEP);
+//         digitalWrite(DIR_THREAD, !digitalRead(DIR_THREAD));
+//         delay(2000);
+//     }
     goToEndstop();
 
 
@@ -133,48 +133,84 @@ void move_mm(float mm, int motor, int time_mcs){
 
 
 
-void move_together(){
-    bool thread_stat = LOW;
-    bool coil_stat = LOW;
-    int coil_wait = COIL_SLEEP;
-    int thread_wait = THREAD_SLEEP;
-    int min_sleep = COIL_SLEEP < THREAD_SLEEP ? COIL_SLEEP : THREAD_SLEEP;
-    int wait = 0;
-    // if thread sleep > coil sleep
-    for(int i = LAYER_TIME;i>0;i-=wait){
-
-        thread_wait = (thread_wait < coil_wait) ? thread_wait : (thread_wait - coil_wait);
-
-
-        wait = coil_wait <= thread_wait ? coil_wait : thread_wait ;
-
-
-        if(coil_wait == COIL_SLEEP){
-            if(coil_wait <= thread_wait){
-                coil_stat = !coil_stat;
-                digitalWrite(STEP_COIL, coil_stat);
-            }
-
-            if(coil_wait >= thread_wait){
-                thread_stat = !thread_stat;
-                digitalWrite(STEP_THREAD, thread_stat);
-                coil_wait -= thread_wait;
-                thread_wait = THREAD_SLEEP;
-            }
-            delayMicroseconds(wait);
-
+void move_togehter(float len, int turns, bool thread_dir, bool coil_dir, int time_mcs){
+    long thread_steps = floor(STEP_FOR_MM * len)*2; // 1 step == HIGH + LOW => x2 step
+    long coil_steps = round(STEPS_TO_360 * turns)*2;
+    int thread_time = round(time_mcs / thread_steps);
+    int coil_time = round(time_mcs / coil_steps);
+    bool thread_s = LOW;
+    bool coil_s = LOW;
+    for(thread_wait = 0, coil_wait = 0;thread_steps >=0 && coil_steps>=0;){
+        int wait = thread_wait < coil_wait ? thread_wait : coil_wait;
+        thread_wait-= wait;
+        coil_wait-= wait;
+        delayMicroseconds(wait);
+        if(thread_wait <= 0 && thread_steps > 0){
+            digitalWrite(STEP_THREAD, thread_s);
+            thread_s = !thread_s;
+            thread_wait = thread_time;
+            thread_steps--;
         }
-        else{
-            coil_stat = !coil_stat;
-            digitalWrite(STEP_COIL, coil_stat);
-            delayMicroseconds(coil_wait);
-            thread_wait = THREAD_SLEEP - coil_wait;
-            coil_wait = COIL_SLEEP;
+        if(coil_wait <= 0 && coil_steps > 0){
+            digitalWrite(STEP_COIL, coil_s);
+            coil_s = !coil_s;
+            coil_wait = coil_time;
+            coil_steps--;
         }
-
-
     }
+}
 
+void move_together2(float len, int turns, bool thread_dir, bool coil_dir, int time_mcs) {
 
+    long thread_steps = floor(STEP_FOR_MM * len);
+    long coil_steps = round(STEPS_TO_360 * turns);
 
+    if (thread_steps <= 0 || coil_steps <= 0 || time_mcs <= 0)
+        return;
+
+    float thread_time = (float)time_mcs / (2.0f * thread_steps);
+    float coil_time = (float)time_mcs / (2.0f * coil_steps);
+
+    // Направления
+    digitalWrite(DIR_THREAD, thread_dir);
+    digitalWrite(DIR_COIL, coil_dir);
+
+    long thread_done = 0;
+    long coil_done = 0;
+
+    bool thread_s = LOW;
+    bool coil_s = LOW;
+
+    float thread_wait = 0;
+    float coil_wait = 0;
+
+    while (thread_done < thread_steps || coil_done < coil_steps) {
+
+        float wait = min(thread_wait, coil_wait);
+
+        thread_wait -= wait;
+        coil_wait -= wait;
+
+        delayMicroseconds((unsigned int)wait);
+
+        if (thread_wait <= 0 && thread_done < thread_steps) {
+            thread_s = !thread_s;
+            digitalWrite(STEP_THREAD, thread_s);
+
+            if (thread_s == LOW)
+                thread_done++;
+
+            thread_wait = thread_time;
+        }
+
+        if (coil_wait <= 0 && coil_done < coil_steps) {
+            coil_s = !coil_s;
+            digitalWrite(STEP_COIL, coil_s);
+
+            if (coil_s == LOW)
+                coil_done++;
+
+            coil_wait = coil_time;
+        }
+    }
 }
