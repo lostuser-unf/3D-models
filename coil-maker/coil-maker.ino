@@ -59,14 +59,14 @@ void loop() {
     delay(3000);
 
     for(int i = TURNS; i > 0; i -= TURNS_BY_LAYER){
-//         int turns_need = (i >= TURNS_BY_LAYER) ? TURNS_BY_LAYER : i;
+        int turns_need = (i >= TURNS_BY_LAYER) ? TURNS_BY_LAYER : i;
 //
 //         for(int j = 0; j < turns_need*2; j++){
 //             move_mm( WIRE_D/2, STEP_THREAD, SLEEP);
 //             move(round(STEPS_TO_360/2), STEP_COIL, SLEEP);
 //         }
 //         // move_mm( 6, STEP_THREAD, SLEEP);
-        move_together(25, TURNS_BY_LAYER, !DIR_PRESET, LOW, LAYER_TIME);
+        move_together(25, turns_need, !DIR_PRESET, LOW, LAYER_TIME);
 
         digitalWrite(DIR_THREAD, !digitalRead(DIR_THREAD));
         delay(2000);
