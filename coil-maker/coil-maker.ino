@@ -12,7 +12,7 @@ const int TURNS_BY_LAYER = floor(COIL_LEN/WIRE_D);
 // const bool STOP_LAYER = false;// stop after layer ended, for apply isolation
 
 // machine config
-const double LAYER_TIME = 30 * 1e6// in microseconds
+const double LAYER_TIME = 30 * 1e6;// in microseconds
 const bool DIR_PRESET = HIGH; // PRESET TO ENDSTOP!!!!!
 const float THREAD_PITCH = 5; // turn/10mm
 const int STEPS_TO_360 = 200 *8; // 1.8 stepper motor
@@ -58,8 +58,7 @@ void loop() {
     digitalWrite(DIR_THREAD, !DIR_PRESET);
     delay(3000);
 
-    move_together(25, TURNS_BY_LAYER, !DIR_PRESET, LOW, LAYER_TIME);
-//     for(int i = TURNS; i > 0; i -= TURNS_BY_LAYER){
+    for(int i = TURNS; i > 0; i -= TURNS_BY_LAYER){
 //         int turns_need = (i >= TURNS_BY_LAYER) ? TURNS_BY_LAYER : i;
 //
 //         for(int j = 0; j < turns_need*2; j++){
@@ -67,9 +66,11 @@ void loop() {
 //             move(round(STEPS_TO_360/2), STEP_COIL, SLEEP);
 //         }
 //         // move_mm( 6, STEP_THREAD, SLEEP);
-//         digitalWrite(DIR_THREAD, !digitalRead(DIR_THREAD));
-//         delay(2000);
-//     }
+        move_together(25, TURNS_BY_LAYER, !DIR_PRESET, LOW, LAYER_TIME);
+
+        digitalWrite(DIR_THREAD, !digitalRead(DIR_THREAD));
+        delay(2000);
+    }
     goToEndstop();
 
 
@@ -133,14 +134,14 @@ void move_mm(float mm, int motor, int time_mcs){
 
 
 
-void move_togehter(float len, int turns, bool thread_dir, bool coil_dir, int time_mcs){
+void move_together(float len, int turns, bool thread_dir, bool coil_dir, int time_mcs){
     long thread_steps = floor(STEP_FOR_MM * len)*2; // 1 step == HIGH + LOW => x2 step
     long coil_steps = round(STEPS_TO_360 * turns)*2;
     int thread_time = round(time_mcs / thread_steps);
     int coil_time = round(time_mcs / coil_steps);
     bool thread_s = LOW;
     bool coil_s = LOW;
-    for(thread_wait = 0, coil_wait = 0;thread_steps >=0 && coil_steps>=0;){
+    for(int thread_wait = 0, coil_wait = 0;thread_steps >=0 && coil_steps>=0;){
         int wait = thread_wait < coil_wait ? thread_wait : coil_wait;
         thread_wait-= wait;
         coil_wait-= wait;
