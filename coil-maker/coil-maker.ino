@@ -1,6 +1,6 @@
 // 5 зуб/см = 0.5/мм == 180град / мм == 3200 шаг/мм
 #include <math.h>
-const float WIRE_D = 0.46; // in mm
+const float WIRE_D = 0.5; // in mm
 
 const float COIL_LEN = 25; // in mm
 const float COIL_D = 10.0; // in mm
@@ -12,14 +12,14 @@ const int TURNS_BY_LAYER = floor(COIL_LEN/WIRE_D);//54
 // const bool STOP_LAYER = false;// stop after layer ended, for apply isolation
 
 // machine config
-const unsigned long long LAYER_TIME = 300000000;// in microseconds
+const unsigned long long LAYER_TIME = 9000000000;// in microseconds
 const bool DIR_PRESET = HIGH; // PRESET TO ENDSTOP!!!!!
 const float THREAD_PITCH = 5; // turn/10mm
 const int STEPS_TO_360 = 200 *8; // 1.8 stepper motor
 const float ONE_STEP_ANGLE = 360 / STEPS_TO_360;
-const float STEP_FOR_MM = STEPS_TO_360 / 10 * THREAD_PITCH;
-const int SLEEP = 100;
-const int LOWERING = 1;
+const float STEP_FOR_MM = round(STEPS_TO_360 / 10 * THREAD_PITCH);
+const int SLEEP = 50;
+const int LOWERING = 4;
 
 // const int THREAD_SLEEP = round(LAYER_TIME / (STEP_FOR_MM * COIL_LEN));
 // const int COIL_SLEEP = round(LAYER_TIME / (STEPS_TO_360 * COIL_LEN / WIRE_D));
@@ -34,6 +34,9 @@ const int EN_DRIVERS = 6;
 const int ENDSTOP = 7;
 
 void setup() {
+    // Serial.begin(9600);
+    // Serial.println("Arduino started!");
+
     pinMode(STEP_THREAD, OUTPUT);
     pinMode(DIR_THREAD, OUTPUT);
     pinMode(STEP_COIL, OUTPUT);
@@ -41,7 +44,7 @@ void setup() {
     pinMode(EN_DRIVERS, OUTPUT);
     pinMode(ENDSTOP, INPUT);
 
-    digitalWrite(EN_DRIVERS, HIGH);
+    digitalWrite(EN_DRIVERS, LOW);
     digitalWrite(DIR_THREAD, DIR_PRESET);
     digitalWrite(DIR_COIL, HIGH);
 }
@@ -50,7 +53,7 @@ void setup() {
 
 void loop() {
     delay(2000);
-    // digitalWrite(EN_DRIVERS, LOW);
+    digitalWrite(EN_DRIVERS, HIGH);
 
     goToEndstop();
 
@@ -60,24 +63,25 @@ void loop() {
 
     // move_together(25, TURNS_BY_LAYER, !DIR_PRESET, LOW, LAYER_TIME);
 
-    for(int i = TURNS; i > 0; i -= TURNS_BY_LAYER){
+    for(int i = TURNS; i > 0; ){
         int turns_need = (i >= TURNS_BY_LAYER) ? TURNS_BY_LAYER : i;
 //
-//         for(int j = 0; j < turns_need*2; j++){
-//             move_mm( WIRE_D/2, STEP_THREAD, SLEEP);
-//             move(round(STEPS_TO_360/2), STEP_COIL, SLEEP);
-//         }
-//         // move_mm( 6, STEP_THREAD, SLEEP);
-        move_together(25, turns_need, DIR_THREAD, LOW, LAYER_TIME);
+        for(int j = 0; j < turns_need *LOWERING; j++){
+            move_mm( WIRE_D/LOWERING, STEP_THREAD, SLEEP);
+            move(round(STEPS_TO_360/LOWERING), STEP_COIL, SLEEP);
+        }
+        // move_mm( 6, STEP_THREAD, SLEEP);
+        // move_together(25, turns_need, DIR_THREAD, LOW, LAYER_TIME);
 
         digitalWrite(DIR_THREAD, !digitalRead(DIR_THREAD));
         delay(2000);
+        i -= turns_need;
     }
     goToEndstop();
 
 
 
-    // digitalWrite(EN_DRIVERS, HIGH);
+    digitalWrite(EN_DRIVERS, LOW);
 
     while(!digitalRead(ENDSTOP))
         delay(1000);
@@ -130,38 +134,40 @@ void move_mm(float mm, int motor, int time_mcs){
 
 
 void move_together(float len, int turns, bool thread_dir, bool coil_dir, int time_mcs){
-    long thread_steps = floor(STEP_FOR_MM * len)*2; // 1 step == HIGH + LOW => x2 step  40000
-    long coil_steps = round(STEPS_TO_360 * turns)*2; //172800
+    long thread_steps = round(STEP_FOR_MM * len*2); // 1 step == HIGH + LOW => x2 step  40000
+    long coil_steps = round(STEPS_TO_360 * turns*2); //172800
     int thread_time = round(time_mcs / thread_steps);//750
     int coil_time = round(time_mcs / coil_steps);//174
     bool thread_s = LOW;
     bool coil_s = LOW;
 
-    for(int thread_wait = 0, coil_wait = 0;thread_steps >0 || coil_steps>0;){
-        int wait = 0;
-        if(thread_steps >=0 && coil_steps>=0)
-            wait = thread_wait < coil_wait ? thread_wait : coil_wait;
-        else if(thread_steps >=0)
-            wait = thread_wait;
-        else if(coil_steps >=0)
-            wait = coil_wait;
+    for(int thread_wait = 0, coil_wait = 0, wait = 0;thread_steps >0 || coil_steps>0;){
 
-        thread_wait-= wait;
-        coil_wait-= wait;
-        delayMicroseconds(wait);
-        delayMicroseconds(100);
 
-        if(thread_wait <= 0 && thread_steps > 0){
+
+        if(thread_wait <= 0 && thread_steps >=  0){
             digitalWrite(STEP_THREAD, thread_s);
             thread_s = !thread_s;
             thread_wait = thread_time;
             thread_steps--;
         }
-        if(coil_wait <= 0 && coil_steps > 0){
+        if(coil_wait <= 0 && coil_steps >= 0){
             digitalWrite(STEP_COIL, coil_s);
             coil_s = !coil_s;
             coil_wait = coil_time;
             coil_steps--;
         }
+        if(thread_steps >0 && coil_steps>0)
+            wait = thread_wait < coil_wait ? thread_wait : coil_wait;
+        else if(thread_steps >0)
+            wait = thread_wait;
+        else if(coil_steps >0)
+            wait = coil_wait;
+
+        Serial.println(wait);
+        thread_wait-= wait;
+        coil_wait-= wait;
+        delayMicroseconds(wait);
+        delayMicroseconds(100);
     }
 }
